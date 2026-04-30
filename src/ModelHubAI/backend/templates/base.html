@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ModelHubAI</title>
+    <title>AI Model Repository</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -21,7 +21,7 @@
             font-weight: bold;
         }
         .hero {
-            margin-top: 20px;
+            margin-top: 80px;
         }
         .btn {
             display: inline-block;
@@ -114,7 +114,8 @@
             <div class="dropdown">
                 <a class="dropbtn" onclick="toggleDropdown('uploadMenu')">Developer Tools ▼</a>
                 <div id="uploadMenu" class="dropdown-content">
-                    <a href="{% url 'upload_service' %}">Deploy AI Agents</a>
+                    <a href="{% url 'upload_model' %}">Upload Model Files</a>
+                    <a href="{% url 'upload_service' %}">Deploy AI Service</a>
                     <a href="{% url 'developer_dashboard' %}">Developer Dashboard</a>
                 </div>
             </div>
@@ -124,9 +125,10 @@
         {% endif %}
 
         <div class="dropdown">
-            <a class="dropbtn" onclick="toggleDropdown('browseMenu')">Browse Agents ▼</a>
+            <a class="dropbtn" onclick="toggleDropdown('browseMenu')">Browse Models ▼</a>
             <div id="browseMenu" class="dropdown-content">
-                <a href="">⚡ AI Agents</a>
+                <a href="{% url 'model_list' %}">📁 Model Files</a>
+                <a href="{% url 'service_catalog' %}">⚡ AI Services</a>
             </div>
         </div>
 
@@ -143,7 +145,7 @@
             {% else %}
                 <a href="{% url 'login' %}">Login</a>
             {% endif %}
-            <a href="">Manage Usage</a>
+            <a href="{% url 'account_management' %}">Manage Usage</a>
             </div>
         </div>
     </div>

@@ -10,7 +10,7 @@ import docker
 import importlib.util
 import ast
 import hashlib
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from docx import Document
@@ -28,7 +28,7 @@ GLOBAL_CACHE = "/app/workspaces/global_model_cache"
 
 class ExecutionRequest(BaseModel):
     model_id: int
-    user_input: str
+    user_input: Any
     file_path: str
     output_type: str = "text"
     extension: Optional[str] = None
@@ -97,11 +97,13 @@ def smart_pip_install(model_id, model_home):
 
         if to_install:
             print(f"DEBUG: Installing required local deps: {to_install}")
+            # Calculate the relative path within the 'ai_workspaces' volume
+            rel_deps_path = os.path.relpath(deps_dir, WORKSPACE_ROOT)
             # SECURITY: Run pip in a temporary container, NOT in the orchestrator.
             # This prevents malicious setup.py scripts from accessing the Docker socket.
             pip_command = [
                 "pip", "install", "--no-cache-dir",
-                "--target", f"/workspace/model_{model_id}/deps",
+                "--target", os.path.join("/workspace", rel_deps_path),
                 "--extra-index-url", "https://download.pytorch.org/whl/cpu"
             ] + to_install
             
@@ -125,10 +127,22 @@ def run_model_in_sandbox(model_home, entry_file, user_input):
     """Runs the model in a network-isolated container with resource limits."""
     # In DooD, we mount the named volume 'ai_workspaces' directly.
     rel_model_path = os.path.relpath(model_home, WORKSPACE_ROOT)
-    
-    # Ensure the sandbox can access uploaded files in temp_uploads
+
     sandbox_user_input = user_input
-    if user_input.startswith("temp_uploads/"):
+
+    # Handle dictionary inputs (Custom UI) or simple strings
+    if isinstance(user_input, dict):
+        # Scan the dictionary for file paths that need host-to-sandbox path translation
+        def resolve_paths(data):
+            for k, v in data.items():
+                if isinstance(v, str) and v.startswith("temp_uploads/"):
+                    data[k] = os.path.join("/app/media", v)
+                elif isinstance(v, dict):
+                    resolve_paths(v)
+        
+        resolve_paths(sandbox_user_input)
+        sandbox_user_input = json.dumps(sandbox_user_input)
+    elif isinstance(user_input, str) and user_input.startswith("temp_uploads/"):
         sandbox_user_input = os.path.join("/app/media", user_input)
 
     volumes = {
@@ -290,15 +304,17 @@ async def execute_model(request: ExecutionRequest):
         smart_pip_install(request.model_id, model_home)
         init_time = time.time() - init_start
 
-        # 4. Run (using the restored mount strategy)
+        # 4. Run by mounting the volumes to the Sandbox
         result_json = run_model_in_sandbox(model_home, entry_file, request.user_input)
         
-        # Calculate input size (Check if input is a file path or raw text)
-        input_size = len(request.user_input.encode('utf-8'))
-        if request.user_input.startswith("temp_uploads/"):
+        # Calculate input size safely based on input type
+        if isinstance(request.user_input, dict):
+            input_size = len(json.dumps(request.user_input).encode('utf-8'))
+        elif isinstance(request.user_input, str) and request.user_input.startswith("temp_uploads/"):
             actual_file = os.path.join("/app/media", request.user_input)
-            if os.path.exists(actual_file):
-                input_size = os.path.getsize(actual_file)
+            input_size = os.path.getsize(actual_file) if os.path.exists(actual_file) else 0
+        else:
+            input_size = len(str(request.user_input).encode('utf-8'))
 
         # Build metrics for telemetry
         metrics = {
@@ -327,9 +343,10 @@ async def execute_model(request: ExecutionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 def handle_file_output(text, model_id, extension, model_home=None):
+    unique_id = uuid.uuid4().hex
     # Handle cases where the model returns multiple files
     if isinstance(text, list):
-        zip_name = f"output_{model_id}.zip"
+        zip_name = f"output_{model_id}_{unique_id}.zip"
         zip_path = f"/app/media/temp_uploads/{zip_name}"
         os.makedirs(os.path.dirname(zip_path), exist_ok=True)
         
@@ -346,7 +363,7 @@ def handle_file_output(text, model_id, extension, model_home=None):
         }
 
     ext = (extension or ".txt").lower()
-    file_name = f"output_{model_id}{ext}"
+    file_name = f"output_{model_id}_{unique_id}{ext}"
     save_path = f"/app/media/temp_uploads/{file_name}"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
@@ -358,7 +375,7 @@ def handle_file_output(text, model_id, extension, model_home=None):
             # If the dev created a file with a specific extension, respect it over the default
             _, actual_ext = os.path.splitext(potential_file)
             if actual_ext and actual_ext.lower() != ext:
-                file_name = f"output_{model_id}{actual_ext.lower()}"
+                file_name = f"output_{model_id}_{unique_id}{actual_ext.lower()}"
                 save_path = os.path.join(os.path.dirname(save_path), file_name)
 
             shutil.copy(potential_file, save_path)

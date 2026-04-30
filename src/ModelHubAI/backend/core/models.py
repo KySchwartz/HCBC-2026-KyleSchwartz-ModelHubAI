@@ -3,22 +3,24 @@ from django.db import models
 from django.dispatch import receiver
 from django.db.models.signals import post_delete
 from django.db.models.signals import pre_save
+from django.utils import timezone
 
+# Defines user roles and data
 class User(AbstractUser):
 
     ROLE_CHOICES = (
-
         ('consumer', 'Consumer'),
-
         ('developer', 'Developer'),
-
         ('admin', 'Admin'),
-
     )
 
+    # User information fields
     role = models.CharField(max_length=15, choices=ROLE_CHOICES, default='consumer')
-
-    credit_balance = models.IntegerField(default=10)
+    credit_balance = models.IntegerField(default=5)
+    purchased_credits = models.IntegerField(default=0)
+    is_subscribed = models.BooleanField(default=False)
+    last_credit_refresh = models.DateTimeField(default=timezone.now)
+    subscription_expiry = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # Automatically grant Django Admin/Staff status if role is set to 'admin'
@@ -27,6 +29,7 @@ class User(AbstractUser):
             self.is_superuser = True
         super().save(*args, **kwargs)
 
+# AI model and agent data stored in the database
 class AIModel(models.Model):
     # Existing fields
     developer = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -39,9 +42,14 @@ class AIModel(models.Model):
     
     # Flexible service fields
     is_interactive = models.BooleanField(default=False)
+    is_published = models.BooleanField(default=False)
     
     # These choices allow the system to adapt to any AI service
-    INPUT_CHOICES = [('text', 'Text Input'), ('file', 'File Upload')]
+    INPUT_CHOICES = [
+        ('text', 'Text Input'), 
+        ('file', 'File Upload'),
+        ('custom', 'Custom UI (JSON Config)'),
+    ]
     OUTPUT_CHOICES = [('text', 'Text Result'), ('file', 'File/Image Download')]
     EXT_CHOICES = [
         ('', 'Custom/Detect from Code'),
@@ -55,18 +63,22 @@ class AIModel(models.Model):
         ('.json', 'JSON File (.json)'),
     ]
     
+    # Service fields
     input_type = models.CharField(max_length=50, choices=INPUT_CHOICES, blank=True, null=True)
     output_type = models.CharField(max_length=50, choices=OUTPUT_CHOICES, blank=True, null=True)
+    ui_config_file = models.FileField(upload_to='ui_configs/', blank=True, null=True)
     output_extension = models.CharField(max_length=10, choices=EXT_CHOICES, default='', blank=True, null=True)
 
     def __str__(self):
         return self.title
- 
+
+# Deletes the old agent code from the platform
 @receiver(post_delete, sender=AIModel)
 def delete_model_file(sender, instance, **kwargs):
     if instance.model_file:
         instance.model_file.delete(save=False)
 
+# Lets users edit their exisiting agent code
 @receiver(pre_save, sender=AIModel)
 def replace_model_file(sender, instance, **kwargs):
     if not instance.pk:
@@ -82,6 +94,7 @@ def replace_model_file(sender, instance, **kwargs):
         old_file.delete(save=False)
 
 class ModelUsage(models.Model):
+    # Fields to track usage statistics of AI services
     model = models.ForeignKey(AIModel, on_delete=models.CASCADE, related_name='usages')
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)

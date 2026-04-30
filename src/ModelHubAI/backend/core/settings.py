@@ -80,7 +80,6 @@ DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get('DATABASE_URL')
     )
-
 }
 
 
@@ -126,5 +125,15 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'core.User'
+ 
+MEDIA_URL = '/media/' 
+MEDIA_ROOT = "/app/media"
 
+
+# Redirect users to the home page after login and logout
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
+
+# Static files URL
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
