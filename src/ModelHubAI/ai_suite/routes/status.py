@@ -1,12 +1,15 @@
-from fastapi import FastAPI
+from fastapi import APIRouter
 
-app = FastAPI()
+router = APIRouter()
 
-@app.get("/")
+@router.get("/")
 def read_root():
     return {"message": "AI Suite is Online"}
 
-@app.get("/status")
+@router.get("/status")
 def get_status():
-    # Show online status
-    return {"status": "online", "version": "1.0.0"}
+    return {
+        "status": "online",
+        "capabilities": ["XGBoost", "Random Forest"],
+        "version": "1.0.0"
+    }

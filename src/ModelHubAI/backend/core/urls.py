@@ -24,7 +24,7 @@ from django.contrib import admin
 urlpatterns = [
     # Home Path 
     path("", views.home, name="home"),
-
+   
     # Models Path 
     path("models/", views.model_list, name="model_list"),
     path("services/", views.ai_service_catalog, name="service_catalog"),
@@ -44,5 +44,3 @@ urlpatterns = [
     #Admin Path
     path('admin/', admin.site.urls),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
