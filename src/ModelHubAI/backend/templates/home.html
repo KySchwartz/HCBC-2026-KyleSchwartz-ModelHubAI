@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+    <style>
+        .status-online { color: green; font-weight: bold; }
+        .status-offline { color: red; font-weight: bold; }
+        .logo {
+            max-width: 300px;
+            height: auto;
+            margin-top: 1px;
+            margin-bottom: 1px;
+        }
+
+    </style>
+    {% if is_auth %}
+        <p>Welcome back, <strong>{{ user_name }}</strong> ({{ user_role|title }})</p>
+    {% else %}
+        <p>Please log in to manage or download AI models.</p>
+    {% endif %}
+    <div class="hero">
+
+        <img src="{% static 'images/ModelHubAILogo.png' %}" alt="ModelHubAI Logo" class="logo">
+        <p>AI Agent Hosting and Repository Platform.</p>
+
+        {% if user.is_authenticated %}
+            <a class="btn" href="/upload/">Upload a Model</a>
+            <a class="btn" href="/models/">View Models</a>
+        {% else %}
+            <a class="btn" href="/login/">Login to Get Started</a>
+        {% endif %}
+        
+    </div>
+    <div style="margin: 20px 0; padding: 10px; border-radius: 5px; background: #eee; display: inline-block;">
+        <strong>AI Suite Connection Status:</strong> 
+        <span class="{% if 'Online' in ai_status %}status-online{% else %}status-offline{% endif %}">
+            {{ ai_status }}
+        </span>
+    </div>
+{% endblock %}
